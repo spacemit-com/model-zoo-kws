@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>kws</name>
+  <version>0.1.0</version>
+  <description>Keyword spotting (wake word) with a built-in cFSMN char-CTC detector</description>
+  <system_depend>python3-pip</system_depend>
+
+  <export>
+    <build_type>cmake</build_type>
+  </export>
+</package>

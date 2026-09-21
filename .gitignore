@@ -1,0 +1,21 @@
+# Compiled
+build*/
+*.o
+*.so
+*.a
+*.pyc
+*.pyo
+__pycache__/
+
+# Packages
+*.whl
+*.egg
+*.egg-info/
+dist/
+
+# Model artefacts (fetched into ~/.cache/models/kws, never committed)
+*.bin
+*.tar.gz
+
+# Cache
+.cache/

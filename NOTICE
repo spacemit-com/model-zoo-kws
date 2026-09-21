@@ -1,0 +1,37 @@
+SpacemiT KWS Component
+Copyright 2026 SpacemiT (Hangzhou) Technology Co. Ltd.
+
+This product includes software developed at
+SpacemiT (Hangzhou) Technology Co. Ltd. (https://www.spacemit.com/).
+
+---------------------------------------------------------------------------
+Third-party Software Notices:
+---------------------------------------------------------------------------
+
+This product contains portions of, or is derived from, the following
+third-party software:
+
+1. speech_charctc_kws_phone-xiaoyun
+   (https://modelscope.cn/models/iic/speech_charctc_kws_phone-xiaoyun)
+   Copyright (c) Alibaba Group
+   Licensed under the Apache License, Version 2.0.
+   The shipped model is fine-tuned from this release; its topology, token set
+   and CMVN statistics come from it.
+
+2. WeKws (https://github.com/wenet-e2e/wekws) and ModelScope
+   (https://github.com/modelscope/modelscope)
+   Copyright (c) 2021-2026 the WeNet and ModelScope authors
+   Licensed under the Apache License, Version 2.0.
+   The keyword-restricted CTC prefix beam search in src/backends/cfsmn/ctc.cpp
+   is a C++ port of their kws_utils implementation, kept bit-comparable on
+   purpose.
+
+3. Kaldi (https://github.com/kaldi-asr/kaldi)
+   Copyright (c) 2009-2026 Daniel Povey and the Kaldi authors
+   Licensed under the Apache License, Version 2.0.
+   The fbank front end in src/backends/cfsmn/fbank.cpp reproduces Kaldi's
+   feature settings so the features match those used for training.
+
+4. pybind11 (https://github.com/pybind/pybind11)
+   Copyright (c) 2016-2026 Wenzel Jakob
+   Licensed under the BSD 3-Clause License.

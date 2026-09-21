@@ -1,0 +1,20 @@
+module: components/model_zoo/kws
+
+tests:
+  - name: kws-config-and-backend-contract
+    description: Verifies KWS presets, immutable config builders, streaming lifecycle and wake-word callbacks with a fake backend.
+    category: functional
+    scopes: [pr]
+    timeout_s: 120
+    workdir: sdk
+    command: |
+      bash components/model_zoo/kws/tests/test_config_and_backend_contract.sh
+
+  - name: kws-invalid-input-error-path
+    description: Verifies unsupported sample rates, impossible beamforming setups, missing models and uninitialized engines fail fast without reporting detections.
+    category: functional
+    scopes: [pr]
+    timeout_s: 120
+    workdir: sdk
+    command: |
+      bash components/model_zoo/kws/tests/test_invalid_input_error_path.sh
