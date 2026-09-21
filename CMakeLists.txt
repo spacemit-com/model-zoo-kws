@@ -31,9 +31,9 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FetchKwsModel.cmake)
 # 数值内核：浮点归约要允许重排才能向量化。CTC 搜索单独编译，保持严格 IEEE 语义，
 # 否则打分会和 python 参照实现对不上。
 set(KWS_FAST_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/cfsmn/fft.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/cfsmn/fbank.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/cfsmn/beam.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/frontend/fft.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/frontend/fbank.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/frontend/beam.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/cfsmn/fsmn.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/cfsmn/cfsmn_backend.cpp
 )

@@ -3,13 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "beam.h"
+#include "frontend/beam.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 
-namespace kws::cfsmn {
+namespace kws::frontend {
 
 bool Beamformer::load(const char *path) {
     FILE *f = fopen(path, "rb");
@@ -78,4 +78,4 @@ void Beamformer::process(const float *in, float *out) {
         out[i] = ola_[i] / std::max(nrm_[i], 1e-3f);
 }
 
-}  // namespace kws::cfsmn
+}  // namespace kws::frontend

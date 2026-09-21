@@ -16,10 +16,11 @@
 #include <string>
 #include <vector>
 
-#include "../kws_backend.hpp"
-#include "beam.h"
+#include "backends/kws_backend.hpp"
+#include "frontend/beam.h"
+#include "frontend/fbank.h"
+
 #include "ctc.h"
-#include "fbank.h"
 #include "fsmn.h"
 
 namespace kws {
@@ -62,8 +63,8 @@ private:
     bool initialized_ = false;
     int source_channel_ = 0;        ///< 不做波束时取哪一路
     cfsmn::Model model_;
-    cfsmn::Beamformer beam_;
-    cfsmn::Fbank fbank_;
+    frontend::Beamformer beam_;
+    frontend::Fbank fbank_;
     cfsmn::Stream stream_;
     std::vector<Slot> slots_;
 

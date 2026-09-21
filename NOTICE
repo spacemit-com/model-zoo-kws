@@ -29,7 +29,7 @@ third-party software:
 3. Kaldi (https://github.com/kaldi-asr/kaldi)
    Copyright (c) 2009-2026 Daniel Povey and the Kaldi authors
    Licensed under the Apache License, Version 2.0.
-   The fbank front end in src/backends/cfsmn/fbank.cpp reproduces Kaldi's
+   The fbank front end in src/frontend/fbank.cpp reproduces Kaldi's
    feature settings so the features match those used for training.
 
 4. pybind11 (https://github.com/pybind/pybind11)

@@ -8,9 +8,9 @@
 // spectrum, 512-point FFT, low edge 20 Hz. Frames are produced incrementally.
 #pragma once
 #include <vector>
-#include "fft.h"
+#include "frontend/fft.h"
 
-namespace kws::cfsmn {
+namespace kws::frontend {
 
 class Fbank {
 public:
@@ -32,4 +32,4 @@ private:
     std::vector<float> window_, mel_, buf_, re_, im_, power_;
 };
 
-}  // namespace kws::cfsmn
+}  // namespace kws::frontend

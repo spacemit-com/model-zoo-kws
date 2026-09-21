@@ -8,9 +8,9 @@
 // steering from the quiet 3 m words).
 #pragma once
 #include <vector>
-#include "fft.h"
+#include "frontend/fft.h"
 
-namespace kws::cfsmn {
+namespace kws::frontend {
 
 class Beamformer {
 public:
@@ -26,4 +26,4 @@ private:
     std::vector<float> w_, win_, xbuf_, ola_, nrm_, re_, im_, yr_, yi_;
 };
 
-}  // namespace kws::cfsmn
+}  // namespace kws::frontend

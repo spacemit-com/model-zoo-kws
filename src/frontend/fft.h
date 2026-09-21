@@ -8,7 +8,7 @@
 #pragma once
 #include <vector>
 
-namespace kws::cfsmn {
+namespace kws::frontend {
 
 struct FFT {
     int n = 0;
@@ -19,4 +19,4 @@ struct FFT {
     void run(float *re, float *im) const;   // in place; inverse = conjugate around the call
 };
 
-}  // namespace kws::cfsmn
+}  // namespace kws::frontend

@@ -3,11 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "fft.h"
+#include "frontend/fft.h"
 #include <algorithm>
 #include <cmath>
 
-namespace kws::cfsmn {
+namespace kws::frontend {
 
 void FFT::init(int size) {
     n = size;
@@ -47,4 +47,4 @@ void FFT::run(float *re, float *im) const {
     }
 }
 
-}  // namespace kws::cfsmn
+}  // namespace kws::frontend

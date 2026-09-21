@@ -120,7 +120,7 @@ ErrorInfo CfsmnBackend::initialize(const KwsConfig& config) {
         return ErrorInfo::error(ErrorCode::INVALID_CONFIG, "beam_first_channel must be >= 0");
     }
     if (config_.use_beamforming &&
-        config_.beam_first_channel + cfsmn::Beamformer::kCh > config_.num_channels) {
+        config_.beam_first_channel + frontend::Beamformer::kCh > config_.num_channels) {
         return ErrorInfo::error(ErrorCode::INVALID_CONFIG,
                                 "beamforming needs 3 channels from beam_first_channel on",
                                 std::to_string(config_.num_channels) + " channels given");
@@ -159,7 +159,7 @@ ErrorInfo CfsmnBackend::initialize(const KwsConfig& config) {
 
     fbank_.init();
     stream_.init(model_);
-    chan_.assign((size_t)kHop * cfsmn::Beamformer::kCh, 0.0f);
+    chan_.assign((size_t)kHop * frontend::Beamformer::kCh, 0.0f);
     beamed_.assign(kHop, 0.0f);
     feat_.assign(model_.idim, 0.0f);
     logits_.assign(model_.odim, 0.0f);
@@ -257,8 +257,8 @@ void CfsmnBackend::processHop(const float* interleaved, std::vector<DetectionRes
     // 模型是在 int16 量级的 fbank 上训练的，这里把 [-1, 1] 还原回去。
     if (config_.use_beamforming) {
         for (int i = 0; i < kHop; ++i)
-            for (int c = 0; c < cfsmn::Beamformer::kCh; ++c)
-                chan_[i * cfsmn::Beamformer::kCh + c] =
+            for (int c = 0; c < frontend::Beamformer::kCh; ++c)
+                chan_[i * frontend::Beamformer::kCh + c] =
                     interleaved[(size_t)i * channels + first + c] * 32768.0f;
         beam_.process(chan_.data(), beamed_.data());
     } else {
@@ -292,8 +292,8 @@ void CfsmnBackend::onFbankFrame(const std::vector<float>& frame,
     while (base < fb_idx_.size() && fb_idx_[base] != need) ++base;
     if (base + 5 > fb_hist_.size()) return;
     for (int k = 0; k < 5; ++k)
-        std::memcpy(&feat_[(size_t)k * cfsmn::Fbank::kBins], fb_hist_[base + k].data(),
-                    sizeof(float) * cfsmn::Fbank::kBins);
+        std::memcpy(&feat_[(size_t)k * frontend::Fbank::kBins], fb_hist_[base + k].data(),
+                    sizeof(float) * frontend::Fbank::kBins);
 
     if (!stream_.push(feat_.data(), logits_.data())) return;   // 流水线还在填充
     for (Slot& slot : slots_)

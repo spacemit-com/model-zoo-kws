@@ -18,8 +18,8 @@
 #include <string>
 #include <vector>
 
-#include "../kws_callback.hpp"
-#include "../kws_types.hpp"
+#include "kws_callback.hpp"
+#include "kws_types.hpp"
 
 namespace kws {
 

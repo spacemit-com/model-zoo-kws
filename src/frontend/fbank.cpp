@@ -3,11 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "fbank.h"
+#include "frontend/fbank.h"
 #include <algorithm>
 #include <cmath>
 
-namespace kws::cfsmn {
+namespace kws::frontend {
 
 namespace {
 constexpr float kPreemph = 0.97f;
@@ -83,4 +83,4 @@ void Fbank::feed(const float *x, int n, std::vector<std::vector<float>> &out) {
     }
 }
 
-}  // namespace kws::cfsmn
+}  // namespace kws::frontend
