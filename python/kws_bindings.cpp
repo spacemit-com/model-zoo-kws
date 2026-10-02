@@ -21,9 +21,23 @@
 #include "kws_service.h"
 
 namespace py = pybind11;
-using namespace SpacemiT;
+using SpacemiT::KwsBackendType;
+using SpacemiT::KwsConfig;
+using SpacemiT::KwsEngine;
+using SpacemiT::KwsEngineCallback;
+using SpacemiT::KwsKeyword;
+using SpacemiT::KwsResult;
 
 namespace {
+
+// Destruction joins native threads which may be acquiring the Python GIL.
+struct EngineDeleter {
+    void operator()(KwsEngine* engine) const {
+        if (PyGILState_Check()) { py::gil_scoped_release release; delete engine; }
+        else delete engine;
+    }
+};
+using EngineHolder = std::unique_ptr<KwsEngine, EngineDeleter>;
 
 // numpy → (指针, 单通道采样点数)。接受 (N,) 与 (N, C) 两种形状。
 std::pair<const float*, size_t> asAudio(const py::array_t<float, py::array::c_style |
@@ -34,7 +48,10 @@ std::pair<const float*, size_t> asAudio(const py::array_t<float, py::array::c_st
         throw std::invalid_argument("audio must be 1-D (interleaved) or 2-D (frames, channels)");
     }
     const size_t total = (size_t)buf.size;
-    if (channels < 1) channels = 1;
+    if (channels < 1) throw std::invalid_argument("configured channel count must be positive");
+    if (buf.ndim == 2 && buf.shape[1] != channels) {
+        throw std::invalid_argument("audio.shape[1] must equal the configured channel count");
+    }
     if (total % (size_t)channels != 0) {
         throw std::invalid_argument("audio length is not a multiple of the channel count");
     }
@@ -90,6 +107,20 @@ PYBIND11_MODULE(_spacemit_kws, m) {
         .value("CFSMN", KwsBackendType::CFSMN)
         .value("CUSTOM", KwsBackendType::CUSTOM);
 
+    py::enum_<SpacemiT::KwsAudioStatus>(m, "KwsAudioStatus")
+        .value("ACCEPTED", SpacemiT::KwsAudioStatus::ACCEPTED)
+        .value("EMPTY", SpacemiT::KwsAudioStatus::EMPTY)
+        .value("NOT_STARTED", SpacemiT::KwsAudioStatus::NOT_STARTED)
+        .value("INVALID_PARAMETER", SpacemiT::KwsAudioStatus::INVALID_PARAMETER)
+        .value("QUEUE_FULL", SpacemiT::KwsAudioStatus::QUEUE_FULL)
+        .value("BUSY", SpacemiT::KwsAudioStatus::BUSY);
+    py::class_<SpacemiT::KwsStreamStats>(m, "KwsStreamStats")
+        .def_readonly("accepted_samples", &SpacemiT::KwsStreamStats::accepted_samples)
+        .def_readonly("dropped_samples", &SpacemiT::KwsStreamStats::dropped_samples)
+        .def_readonly("input_overruns", &SpacemiT::KwsStreamStats::input_overruns)
+        .def_readonly("event_overruns", &SpacemiT::KwsStreamStats::event_overruns)
+        .def_readonly("queued_blocks", &SpacemiT::KwsStreamStats::queued_blocks);
+
     // -------------------------------------------------------------------------
     // KwsKeyword
     // -------------------------------------------------------------------------
@@ -123,6 +154,8 @@ PYBIND11_MODULE(_spacemit_kws, m) {
         .def_readwrite("threshold", &KwsConfig::threshold)
         .def_readwrite("holdoff_ms", &KwsConfig::holdoff_ms)
         .def_readwrite("decode_context", &KwsConfig::decode_context)
+        .def_readwrite("partial_threshold", &KwsConfig::partial_threshold)
+        .def_readwrite("partial_wait_ms", &KwsConfig::partial_wait_ms)
         .def_readwrite("score_interval", &KwsConfig::score_interval)
         .def_readwrite("num_threads", &KwsConfig::num_threads)
         .def_static("preset", &KwsConfig::Preset, py::arg("name"))
@@ -136,6 +169,7 @@ PYBIND11_MODULE(_spacemit_kws, m) {
         .def("with_beamforming", &KwsConfig::withBeamforming, py::arg("enable"))
         .def("with_score_interval", &KwsConfig::withScoreInterval, py::arg("frames"))
         .def("with_decode_context", &KwsConfig::withDecodeContext, py::arg("frames"))
+        .def("with_sample_rate", &KwsConfig::withSampleRate, py::arg("rate"))
         .def("with_num_threads", &KwsConfig::withNumThreads, py::arg("threads"));
 
     // -------------------------------------------------------------------------
@@ -173,39 +207,40 @@ PYBIND11_MODULE(_spacemit_kws, m) {
     // -------------------------------------------------------------------------
     // KwsEngine
     // -------------------------------------------------------------------------
-    py::class_<KwsEngine>(m, "KwsEngine")
+    py::class_<KwsEngine, EngineHolder>(m, "KwsEngine")
         .def(py::init([](const KwsConfig& config) {
-                return std::make_unique<KwsEngine>(config);
+                return EngineHolder(new KwsEngine(config));
             }),
             py::arg("config") = KwsConfig::Preset("xiaojin"))
         .def(py::init([](const std::string& preset, const std::string& model_dir) {
                 auto config = KwsConfig::Preset(preset);
                 if (!model_dir.empty()) config.model_dir = model_dir;
-                return std::make_unique<KwsEngine>(config);
+                return EngineHolder(new KwsEngine(config));
             }),
             py::arg("preset"), py::arg("model_dir") = "")
         .def("detect",
             [](KwsEngine& self, const py::array_t<float, py::array::c_style |
                                                     py::array::forcecast>& audio,
                 int sample_rate) {
-                const auto [ptr, samples] = asAudio(audio, self.GetConfig().num_channels);
+                const auto [ptr, samples] = asAudio(audio, self.GetNumChannels());
                 py::gil_scoped_release release;
                 return self.Detect(ptr, samples, sample_rate);
             },
             py::arg("audio"), py::arg("sample_rate") = 16000,
             "整段检测，返回其中最高的一次打分")
-        .def("set_callback", &KwsEngine::SetCallback, py::arg("callback"))
-        .def("start", &KwsEngine::Start)
+        .def("set_callback", &KwsEngine::SetCallback, py::arg("callback"), py::keep_alive<1, 2>())
+        .def("start", &KwsEngine::Start, py::call_guard<py::gil_scoped_release>())
         .def("send_audio_frame",
             [](KwsEngine& self, const py::array_t<float, py::array::c_style |
                                                     py::array::forcecast>& audio) {
-                const auto [ptr, samples] = asAudio(audio, self.GetConfig().num_channels);
-                self.SendAudioFrame(ptr, samples);
+                const auto [ptr, samples] = asAudio(audio, self.GetNumChannels());
+                return self.SendAudioFrame(ptr, samples);
             },
             py::arg("audio"))
-        .def("stop", &KwsEngine::Stop)
-        .def("reset", &KwsEngine::Reset)
+        .def("stop", &KwsEngine::Stop, py::call_guard<py::gil_scoped_release>())
+        .def("reset", &KwsEngine::Reset, py::call_guard<py::gil_scoped_release>())
         .def("set_threshold", &KwsEngine::SetThreshold, py::arg("threshold"))
+        .def("get_stream_stats", &KwsEngine::GetStreamStats)
         .def("get_config", &KwsEngine::GetConfig)
         .def("get_keywords", &KwsEngine::GetKeywords)
         .def_property_readonly("initialized", &KwsEngine::IsInitialized)

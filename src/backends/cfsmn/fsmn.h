@@ -6,7 +6,9 @@
 // cFSMN char-CTC forward. Two modes: whole-window recompute (for checking
 // against PyTorch) and frame-by-frame with the FSMN memory carried across
 // calls - the `in_cache` that the ModelScope python declares but never wires up.
-#pragma once
+#ifndef FSMN_H
+#define FSMN_H
+
 #include <vector>
 
 namespace kws::cfsmn {
@@ -42,9 +44,18 @@ struct Stream {
     const Model *m = nullptr;
     std::vector<MemConv> st;
     std::vector<float> ti, ta, h, p, o;
+    bool finished = false;
 
     void init(const Model &m);
     bool push(const float *feat, float *logits);   // false while the pipeline fills
+    // Append all remaining frames. Zero context is applied to each layer's
+    // projection, matching forward_window, rather than to raw input features.
+    void finish(std::vector<float> &logits);
+
+private:
+    bool advance(int first_layer, float *logits);
 };
 
 }  // namespace kws::cfsmn
+
+#endif  // FSMN_H

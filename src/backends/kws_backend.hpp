@@ -71,6 +71,12 @@ public:
     virtual ErrorInfo process(const AudioChunk& audio,
                                 std::vector<DetectionResult>& results) = 0;
 
+    /// @brief 排空有限音频的前瞻缓存，追加尾部结果；重复调用不产生新结果。
+    virtual ErrorInfo finish(std::vector<DetectionResult>& results) {
+        (void)results;
+        return ErrorInfo::ok();
+    }
+
     /// @brief 重置内部状态（音频时间、FSMN 记忆、静默期）
     virtual void reset() = 0;
 
@@ -87,10 +93,14 @@ public:
     // -------------------------------------------------------------------------
 
     virtual ErrorInfo startStream() {
+        if (!isInitialized())
+            return ErrorInfo::error(ErrorCode::NOT_INITIALIZED, "Backend not initialized");
         if (streaming_.load()) {
             return ErrorInfo::error(ErrorCode::ALREADY_STARTED, "Stream already started");
         }
+        reset();
         streaming_.store(true);
+        notifyStart();
         return ErrorInfo::ok();
     }
 
@@ -101,7 +111,10 @@ public:
         std::vector<DetectionResult> results;
         auto err = process(audio, results);
         if (!err.isOk()) {
+            streaming_.store(false);
+            reset();
             notifyError(err);
+            notifyClose();
             return err;
         }
         for (const auto& result : results) {
@@ -118,7 +131,21 @@ public:
             return ErrorInfo::error(ErrorCode::NOT_STARTED, "Stream not started");
         }
         streaming_.store(false);
-        return ErrorInfo::ok();
+        std::vector<DetectionResult> results;
+        auto err = finish(results);
+        if (!err.isOk()) {
+            notifyError(err);
+            notifyClose();
+            return err;
+        }
+        for (const auto& result : results) {
+            notifyResult(result);
+            if (result.is_wake_word)
+                notifyWakeWord(result.keyword, result.score, result.timestamp_ms);
+        }
+        notifyComplete();
+        notifyClose();
+        return err;
     }
 
     virtual bool isStreamActive() const { return streaming_.load(); }

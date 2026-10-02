@@ -19,7 +19,7 @@ static const std::map<std::string, std::function<KwsConfig()>>& getPresets() {
         {"xiaojin", []() {
             KwsConfig config;
             config.backend = KwsBackendType::CFSMN;
-            config.model_dir = "~/.cache/models/kws/xiaojin";
+            // Resolve KWS_MODEL_DIR (or the default cache) when the engine initializes.
             config.keywords = {KwsKeyword{"小进小进", {}, 0.0f}};
             return config;
         }},
@@ -27,7 +27,7 @@ static const std::map<std::string, std::function<KwsConfig()>>& getPresets() {
         {"xiaojin-4mic", []() {
             KwsConfig config;
             config.backend = KwsBackendType::CFSMN;
-            config.model_dir = "~/.cache/models/kws/xiaojin";
+            // Leave model_dir empty so the environment override also works for presets.
             config.keywords = {KwsKeyword{"小进小进", {}, 0.0f}};
             config.num_channels = 4;
             config.use_beamforming = true;

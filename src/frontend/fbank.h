@@ -6,7 +6,9 @@
 // Kaldi-compatible 80-bin log-mel fbank, matching the settings the model was
 // trained with: 25 ms/10 ms, hamming, preemphasis 0.97, DC removal, power
 // spectrum, 512-point FFT, low edge 20 Hz. Frames are produced incrementally.
-#pragma once
+#ifndef FBANK_H
+#define FBANK_H
+
 #include <vector>
 #include "frontend/fft.h"
 
@@ -33,3 +35,5 @@ private:
 };
 
 }  // namespace kws::frontend
+
+#endif  // FBANK_H
