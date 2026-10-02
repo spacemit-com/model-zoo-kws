@@ -21,6 +21,7 @@ mkdir -p "${artifact_dir}"
   "${module_dir}/src/kws_presets.cpp" \
   "${module_dir}/src/kws_backend_factory.cpp" \
   "${module_dir}/src/backends/cfsmn/cfsmn_backend.cpp" \
+  "${module_dir}/src/model_fetch.cpp" \
   "${module_dir}/src/frontend/fft.cpp" \
   "${module_dir}/src/frontend/fbank.cpp" \
   "${module_dir}/src/frontend/beam.cpp" \

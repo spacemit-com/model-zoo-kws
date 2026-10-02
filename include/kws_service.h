@@ -51,7 +51,7 @@ struct KwsKeyword {
 // 引擎配置，可用 Preset("xiaojin") 创建。
 struct KwsConfig {
     KwsBackendType backend = KwsBackendType::CFSMN;
-    std::string model_dir;                 ///< 模型目录，默认 ~/.cache/models/kws/xiaojin-v1
+    std::string model_dir;                 ///< 模型目录，默认 ~/.cache/models/kws/xiaojin-v1（仅默认目录缺失时自动下载）
     std::vector<KwsKeyword> keywords;      ///< 空表示使用模型目录中的默认关键词
 
     // 音频参数：16 kHz、int16 归一化到 [-1, 1] 的 float。

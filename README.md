@@ -29,8 +29,13 @@ pip install pybind11 numpy
 
 ### 2.2. 提供模型
 
-模型不进 git，发布包为 `xiaojin-v1`（约 2.3 MB）。构建默认不下载模型（与 asr 一致），
-可任选一种方式放到默认目录 `~/.cache/models/kws/xiaojin-v1`：
+模型不进 git，发布包为 `xiaojin-v1`（约 2.3 MB），默认目录 `~/.cache/models/kws/xiaojin-v1`。
+默认目录缺文件时，第一次初始化引擎会自动把发布包下载到该目录：先核对预置的 SHA256 再解包，
+需要 `curl`、`tar`、`sha256sum`（或 `shasum`）命令和能访问 archive.spacemit.com 的网络。
+下载期间初始化会等待：离线时约 1~11 s 后报下载失败，传输卡住时最多约 2 分钟。
+设 `KWS_MODEL_DOWNLOAD=0` 可关闭自动下载（离线环境，或要确认运行时不联网时），缺模型时立即报错。
+
+构建默认不下载模型（与 asr 一致）。需要提前放好时，可任选一种方式：
 
 ```bash
 # 方式一：配置时下载，校验 TLS 与 CMake 中预置的 SHA256
@@ -59,7 +64,7 @@ export KWS_MODEL_DIR="$HOME/.cache/models/kws/xiaojin-ft02"
 # 也可使用 --model-dir 或 KwsConfig::model_dir
 ```
 
-该目录须已包含 `cfsmn.bin`、`beam_w.bin`、`keywords.txt`；设置环境变量不会下载或导出权重。
+只有默认目录会自动下载；其他目录须已包含 `cfsmn.bin`、`beam_w.bin`、`keywords.txt`。
 SDK 构建的程序统一安装到 SDK 根目录的 `output/staging/bin/`，
 源码仍在 `components/model_zoo/kws/`。训练数据、checkpoint 和实验记录由训练仓库管理。
 配置时下载失败不会被报告成模型就绪；没有模型也可以编译库、运行合成权重回归测试。
@@ -310,7 +315,8 @@ target_include_directories(your_target PRIVATE ${KWS_SOURCE_DIR}/include)
 
 | 现象 | 可能原因 | 处理 |
 | --- | --- | --- |
-| `Model weights not found` | 没下载模型，或 `model_dir` 不对 | 见 [2.2](#22-下载模型)，或设 `KWS_MODEL_DIR` |
+| `Model weights not found` | 非默认目录里没有模型、`model_dir` 不对，或 `KWS_MODEL_DOWNLOAD=0` | 见 [2.2](#22-提供模型)，或设 `KWS_MODEL_DIR` |
+| `Model download failed` | 无网络、缺 `curl`/`tar`/`sha256sum`，或下载内容 SHA256 不符 | 看错误详情；离线环境按 [2.2](#22-提供模型) 手动放模型 |
 | 一直不唤醒 | 采样率不是 16 kHz；通道数/交织方式不符；音频没归一化到 `[-1, 1]` | 先用 `kws_file_demo` 回放同一段录音确认链路 |
 | 远场唤醒率低 | 单通道输入没有走波束 | 4 通道时开 `use_beamforming`；或在前级接 AEC/降噪 |
 | 外放时失聪 | 回声淹没人声 | 试用 `--aec`，确保实际播放经过该全双工链路，并检查 raw/aec/ref 录音 |
@@ -323,6 +329,7 @@ target_include_directories(your_target PRIVATE ${KWS_SOURCE_DIR}/include)
 | 版本 | 说明 |
 | --- | --- |
 | 1.0.0 | 提供 C++ / Python 接口，内置 cFSMN char-CTC 后端、3 麦固定波束、整段与流式检测、易混词否决；模型发布包 `xiaojin-v1`。 |
+| 1.1.0 | 默认模型目录缺文件时运行时自动下载 `xiaojin-v1` 并校验 SHA256；`KWS_MODEL_DOWNLOAD=0` 关闭。 |
 
 ## 6. 贡献方式
 

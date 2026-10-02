@@ -39,7 +39,7 @@ struct KwsKeyword {
 ```cpp
 struct KwsConfig {
     KwsBackendType backend = KwsBackendType::CFSMN;
-    std::string model_dir;                 // 空 → $KWS_MODEL_DIR → ~/.cache/models/kws/xiaojin-v1
+    std::string model_dir;                 // 空 → $KWS_MODEL_DIR → ~/.cache/models/kws/xiaojin-v1（仅默认目录缺失时自动下载）
     std::vector<KwsKeyword> keywords;      // 空 → 用模型目录里的全部关键词
 
     int sample_rate = 16000;
@@ -341,7 +341,8 @@ Python 侧对应 `engine.initialized` 与 `engine.last_error`。常见错误：
 
 | 错误 | 含义 |
 | --- | --- |
-| `Model weights not found: <path>/cfsmn.bin` | 模型没下载，或 `model_dir` 指错 |
+| `Model weights not found: <path>/cfsmn.bin` | 非默认目录里没有模型、`model_dir` 指错，或 `KWS_MODEL_DOWNLOAD=0` |
+| `Model download failed: <详情>` | 默认目录自动下载失败：无网络、缺 `curl`/`tar`/`sha256sum`，或 SHA256 不符 |
 | `Keyword '<text>' has no token ids` | 关键词不在 `keywords.txt` 里，也没有显式给 `token_ids` |
 | `cFSMN backend only supports 16 kHz` | 采样率不是 16000 |
 | `beamforming needs 3 channels from beam_first_channel on` | 通道数不够开波束 |
