@@ -7,6 +7,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "model_io.hpp"
+
 namespace kws::cfsmn {
 
 namespace {
@@ -35,6 +37,7 @@ void back(const Model &m, const float *h, float *logits, float *ta) {
 }  // namespace
 
 bool Model::load(const char *path) {
+    *this = Model{};
     FILE *f = fopen(path, "rb");
     if (!f) { perror(path); return false; }
     char magic[4];
@@ -43,18 +46,21 @@ bool Model::load(const char *path) {
         fclose(f);
         return false;
     }
-    int d[9];
-    if (fread(d, sizeof(int), 9, f) != 9) { fclose(f); return false; }
+    uint32_t d[9];
+    for (auto &value : d) {
+        if (!readLe32(f, value) || value > 8192) { fclose(f); return false; }
+    }
+    if (!d[0] || !d[1] || !d[2] || !d[3] || !d[4] || !d[6] || !d[7] || !d[8] ||
+        d[4] > 256 || d[5] > 256 || d[6] > 64) { fclose(f); return false; }
     idim = d[0]; a1 = d[1]; ldim = d[2]; pdim = d[3];
     lorder = d[4]; rorder = d[5]; layers = d[6]; a2 = d[7]; odim = d[8];
-    const long n = 2L * idim + (long)a1 * idim + a1 + (long)ldim * a1 + ldim
-                 + layers * ((long)pdim * ldim + (long)pdim * lorder + (long)pdim * rorder
-                             + (long)ldim * pdim + ldim)
-                 + (long)a2 * ldim + a2 + (long)odim * a2 + odim;
-    blob.resize(n);
-    const bool ok = (long)fread(blob.data(), sizeof(float), n, f) == n;
+    const size_t n = 2ULL * idim + (size_t)a1 * idim + a1 + (size_t)ldim * a1 + ldim
+                    + layers * ((size_t)pdim * ldim + (size_t)pdim * lorder + (size_t)pdim * rorder
+                                + (size_t)ldim * pdim + ldim)
+                    + (size_t)a2 * ldim + a2 + (size_t)odim * a2 + odim;
+    const bool ok = readModelFloats(f, n, blob);
     fclose(f);
-    if (!ok) { fprintf(stderr, "%s: short read\n", path); return false; }
+    if (!ok) { *this = Model{}; return false; }
     const float *p = blob.data();
     mean = p; p += idim;  istd = p; p += idim;
     in1w = p; p += (long)a1 * idim;  in1b = p; p += a1;
@@ -69,7 +75,7 @@ bool Model::load(const char *path) {
     }
     o1w = p; p += (long)a2 * ldim;  o1b = p; p += a2;
     o2w = p; p += (long)odim * a2;  o2b = p; p += odim;
-    return (p - blob.data()) == n;
+    return static_cast<size_t>(p - blob.data()) == n;
 }
 
 void forward_window(const Model &m, const float *X, int T, float *logits) {
@@ -137,6 +143,7 @@ bool MemConv::push(const float *x, const Layer &ly, float *out) {
 
 void Stream::init(const Model &mm) {
     m = &mm;
+    finished = false;
     st.resize(m->layers);
     for (int i = 0; i < m->layers; ++i) st[i].init(m->pdim, m->lorder, m->rorder);
     ti.resize(m->idim);
@@ -147,8 +154,13 @@ void Stream::init(const Model &mm) {
 }
 
 bool Stream::push(const float *feat, float *logits) {
+    if (finished) return false;
     front(*m, feat, h.data(), ti.data(), ta.data());
-    for (int l = 0; l < m->layers; ++l) {
+    return advance(0, logits);
+}
+
+bool Stream::advance(int first_layer, float *logits) {
+    for (int l = first_layer; l < m->layers; ++l) {
         matvec(m->L[l].pw, nullptr, h.data(), p.data(), m->pdim, m->ldim);
         if (!st[l].push(p.data(), m->L[l], o.data())) return false;
         matvec(m->L[l].aw, m->L[l].ab, o.data(), h.data(), m->ldim, m->pdim);
@@ -156,6 +168,23 @@ bool Stream::push(const float *feat, float *logits) {
     }
     back(*m, h.data(), logits, ta.data());
     return true;
+}
+
+void Stream::finish(std::vector<float> &logits) {
+    if (finished) return;
+    finished = true;
+    std::vector<float> zero(m->pdim, 0.0f), frame(m->odim);
+    for (int l = 0; l < m->layers; ++l) {
+        const long real_frames = st[l].t;
+        if (real_frames == 0) continue;
+        for (int k = 0; k < m->rorder; ++k) {
+            if (!st[l].push(zero.data(), m->L[l], o.data())) continue;
+            matvec(m->L[l].aw, m->L[l].ab, o.data(), h.data(), m->ldim, m->pdim);
+            relu(h.data(), m->ldim);
+            if (advance(l + 1, frame.data()))
+                logits.insert(logits.end(), frame.begin(), frame.end());
+        }
+    }
 }
 
 }  // namespace kws::cfsmn

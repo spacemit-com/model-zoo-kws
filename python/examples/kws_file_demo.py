@@ -9,6 +9,7 @@ KWS Python 示例：回放一个 16 kHz wav，打印唤醒事件。
     python kws_file_demo.py --wav play-3m.wav
 """
 import argparse
+import time
 import wave
 
 import numpy as np
@@ -19,8 +20,13 @@ def read_wav(path):
     with wave.open(path) as w:
         if w.getframerate() != 16000:
             raise SystemExit(f"{path}: {w.getframerate()} Hz, the model needs 16000")
-        pcm = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
-    return pcm.astype(np.float32) / 32768.0, w.getnchannels()
+        if w.getsampwidth() != 2 or w.getcomptype() != "NONE":
+            raise SystemExit(f"{path}: expected PCM16 WAV")
+        channels = w.getnchannels()
+        pcm = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2")
+        if pcm.size != w.getnframes() * channels:
+            raise SystemExit(f"{path}: truncated PCM data")
+    return pcm.astype(np.float32) / 32768.0, channels
 
 
 class Printer(spacemit_kws.KwsCallback):
@@ -69,15 +75,24 @@ def main():
 
     callback = Printer(args.quiet)
     engine.set_callback(callback)
-    engine.start()
+    if not engine.start():
+        raise SystemExit(engine.last_error)
     print(f"engine  : {engine.engine_name}, keywords: {' '.join(engine.get_keywords())}, "
           f"thr {config.threshold:.2f}, lookahead {engine.lookahead_ms} ms, "
           f"beam {'on' if beam else 'off'}")
 
     hop = 160 * channels
-    for i in range(0, len(audio) - hop + 1, hop):
-        engine.send_audio_frame(audio[i:i + hop])
+    for i in range(0, len(audio), hop):
+        # Offline feeding may wait; never wait in a microphone callback.
+        while engine.streaming and engine.get_stream_stats().queued_blocks == 128:
+            time.sleep(0.001)
+        if engine.send_audio_frame(audio[i:i + hop]) != spacemit_kws.KwsAudioStatus.ACCEPTED:
+            raise SystemExit(engine.last_error)
+        if not engine.streaming:
+            raise SystemExit(engine.last_error)
     engine.stop()
+    if engine.last_error:
+        raise SystemExit(engine.last_error)
 
     seconds = len(audio) / channels / 16000
     print(f"done    | {callback.wakes} wake(s) over {seconds:.1f}s audio")

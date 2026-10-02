@@ -42,6 +42,7 @@ public:
 
     ErrorInfo process(const AudioChunk& audio,
                         std::vector<DetectionResult>& results) override;
+    ErrorInfo finish(std::vector<DetectionResult>& results) override;
     void reset() override;
     ErrorInfo setThreshold(float threshold) override;
 
@@ -51,16 +52,23 @@ private:
         std::string text;
         float threshold = 0.3f;
         double last_fire = -1e9;
+        int64_t last_end = -1;
+        long decode_start = 0;
+        bool waiting_for_boundary = false;
+        std::vector<Keyword> rivals;   ///< 同长易混词，只用于否决时的日志
         cfsmn::CtcKeywordDecoder decoder;
         std::vector<cfsmn::FrameCand> ring, order;
     };
 
     ErrorInfo loadKeywords(const KwsConfig& config, const std::string& model_dir);
-    void processHop(const float* interleaved, std::vector<DetectionResult>& results);
+    void processHop(const float* interleaved, std::vector<DetectionResult>& results,
+                    int output_samples = kHop);
     void onFbankFrame(const std::vector<float>& frame, std::vector<DetectionResult>& results);
+    void onLogits(const float* logits, std::vector<DetectionResult>& results);
     void scoreFrame(std::vector<DetectionResult>& results);
 
     bool initialized_ = false;
+    bool finished_ = false;
     int source_channel_ = 0;        ///< 不做波束时取哪一路
     cfsmn::Model model_;
     frontend::Beamformer beam_;
@@ -73,7 +81,7 @@ private:
     std::vector<std::vector<float>> fb_new_, fb_hist_;
     std::vector<long> fb_idx_;
     long fb_next_ = 0, nposts_ = 0, model_frames_ = 0;
-    double audio_time_ = 0.0;
+    int64_t input_samples_ = 0;
 };
 
 }  // namespace kws

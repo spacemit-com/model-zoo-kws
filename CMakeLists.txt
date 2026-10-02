@@ -16,12 +16,22 @@ endif()
 # -------------------------------------------------------
 option(BUILD_KWS_EXAMPLES "Build KWS example programs" ON)
 option(BUILD_KWS_PYTHON "Build Python bindings" ON)
-option(KWS_MODEL_FETCH_OFF "Do not download the model at configure time" OFF)
+option(BUILD_KWS_TESTS "Build deterministic KWS inference regression tests" OFF)
+option(KWS_MODEL_FETCH_OFF "Do not download the model at configure time" ON)
+set(_KWS_MICROPHONE_DEFAULT OFF)
+if(DEFINED ENV{SROBOTIS_OUTPUT_ROOT} AND NOT "$ENV{SROBOTIS_OUTPUT_ROOT}" STREQUAL "")
+    set(_KWS_MICROPHONE_DEFAULT ON)
+endif()
+option(BUILD_KWS_MICROPHONE "Enable SDK audio capture/playback in kws_stream_demo" ${_KWS_MICROPHONE_DEFAULT})
+option(BUILD_KWS_AEC "Enable optional WebRTC AEC3 full-duplex mode in the stream demo" OFF)
+if(BUILD_KWS_AEC AND (NOT BUILD_KWS_MICROPHONE OR NOT BUILD_KWS_EXAMPLES))
+    message(FATAL_ERROR "BUILD_KWS_AEC requires BUILD_KWS_MICROPHONE and BUILD_KWS_EXAMPLES")
+endif()
 
 # -------------------------------------------------------
 # Model
 # -------------------------------------------------------
-# 权重与波束系数下载到 ~/.cache/models/kws/xiaojin，运行时由 KwsConfig::model_dir
+# 权重与波束系数下载到 ~/.cache/models/kws/xiaojin-v1，运行时由 KwsConfig::model_dir
 # （或环境变量 KWS_MODEL_DIR）指向；库本身不嵌入模型。
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FetchKwsModel.cmake)
 
@@ -35,9 +45,9 @@ set(KWS_FAST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/frontend/fbank.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/frontend/beam.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/cfsmn/fsmn.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/cfsmn/cfsmn_backend.cpp
 )
 set(KWS_STRICT_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/cfsmn/cfsmn_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/cfsmn/ctc.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/kws_engine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/kws_backend_factory.cpp
@@ -65,6 +75,20 @@ set_target_properties(kws PROPERTIES
 
 message(STATUS "KWS library enabled (cFSMN backend, no external inference engine)")
 
+if(BUILD_KWS_TESTS)
+    enable_testing()
+    add_executable(kws_inference_test tests/kws_inference_test.cpp)
+    target_link_libraries(kws_inference_test PRIVATE kws)
+    add_test(NAME kws-inference-regression COMMAND kws_inference_test)
+    set_tests_properties(kws-inference-regression PROPERTIES TIMEOUT 90)
+    add_executable(kws_async_test tests/kws_async_test.cpp src/kws_engine.cpp src/kws_presets.cpp)
+    target_include_directories(kws_async_test PRIVATE include src)
+    target_link_libraries(kws_async_test PRIVATE pthread)
+    add_test(NAME kws-async-contract COMMAND kws_async_test)
+    set_tests_properties(kws-async-contract PROPERTIES TIMEOUT 30)
+
+endif()
+
 # -------------------------------------------------------
 # Install rules
 # -------------------------------------------------------
@@ -87,6 +111,58 @@ if(BUILD_KWS_EXAMPLES)
         )
         install(TARGETS ${demo} RUNTIME DESTINATION bin)
     endforeach()
+
+    if(BUILD_KWS_MICROPHONE)
+        find_path(KWS_AUDIO_INCLUDE_DIR audio_base.hpp)
+        find_library(KWS_AUDIO_LIBRARY spacemit_audio)
+        if(NOT KWS_AUDIO_INCLUDE_DIR OR NOT KWS_AUDIO_LIBRARY)
+            message(FATAL_ERROR "Build/install the audio component first, or set BUILD_KWS_MICROPHONE=OFF for --stdin only")
+        endif()
+        # Prefer the PortAudio installed with the SDK audio component.
+        get_filename_component(_KWS_AUDIO_LIB_DIR "${KWS_AUDIO_LIBRARY}" DIRECTORY)
+        find_library(KWS_PORTAUDIO_LIBRARY portaudio HINTS "${_KWS_AUDIO_LIB_DIR}")
+        if(NOT KWS_PORTAUDIO_LIBRARY)
+            message(FATAL_ERROR "PortAudio from the audio component was not found")
+        endif()
+        target_compile_definitions(kws_stream_demo PRIVATE KWS_HAS_AUDIO=1)
+        target_include_directories(kws_stream_demo PRIVATE "${KWS_AUDIO_INCLUDE_DIR}")
+        target_link_libraries(kws_stream_demo PRIVATE "${KWS_AUDIO_LIBRARY}" "${KWS_PORTAUDIO_LIBRARY}")
+        if(APPLE)
+            set(_KWS_AUDIO_INSTALL_RPATH "@loader_path/../lib")
+        else()
+            set(_KWS_AUDIO_INSTALL_RPATH "$ORIGIN/../lib")
+        endif()
+        set_target_properties(kws_stream_demo PROPERTIES INSTALL_RPATH "${_KWS_AUDIO_INSTALL_RPATH}")
+    endif()
+
+    if(BUILD_KWS_AEC)
+        include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/KwsWebRtc.cmake)
+        add_library(kws_demo_aec STATIC examples/kws_aec_audio.cpp)
+        # staging may contain an older kws_service.h; prefer this checkout.
+        target_include_directories(kws_demo_aec BEFORE PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+        target_include_directories(kws_demo_aec PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/examples"
+            PRIVATE "${KWS_AUDIO_INCLUDE_DIR}")
+        target_link_libraries(kws_demo_aec PUBLIC kws PRIVATE "${KWS_AUDIO_LIBRARY}"
+            "${KWS_PORTAUDIO_LIBRARY}" ${KWS_WEBRTC_TARGET})
+        target_compile_definitions(kws_stream_demo PRIVATE KWS_HAS_AEC=1)
+        target_link_libraries(kws_stream_demo PRIVATE kws_demo_aec)
+        if(BUILD_KWS_TESTS)
+            add_executable(kws_aec_test tests/kws_aec_test.cpp)
+            target_link_libraries(kws_aec_test PRIVATE kws_demo_aec)
+            add_test(NAME kws-aec-regression COMMAND kws_aec_test)
+            set_tests_properties(kws-aec-regression PROPERTIES TIMEOUT 60)
+        endif()
+    endif()
+
+    if(BUILD_KWS_TESTS)
+        find_package(Python3 COMPONENTS Interpreter QUIET)
+        if(Python3_Interpreter_FOUND)
+            add_test(NAME kws-stream-cli
+                COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_stream_cli.py
+                    $<TARGET_FILE:kws_stream_demo> $<TARGET_FILE:kws_file_demo>)
+            set_tests_properties(kws-stream-cli PROPERTIES TIMEOUT 30)
+        endif()
+    endif()
 endif()
 
 # -------------------------------------------------------
@@ -128,6 +204,14 @@ if(BUILD_KWS_PYTHON)
 
         target_include_directories(_spacemit_kws PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
         target_link_libraries(_spacemit_kws PRIVATE kws)
+
+        if(BUILD_KWS_TESTS)
+            add_test(NAME kws-python-bindings
+                COMMAND ${CMAKE_COMMAND} -E env
+                    "PYTHONPATH=$<TARGET_FILE_DIR:_spacemit_kws>"
+                    ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_python_bindings.py)
+            set_tests_properties(kws-python-bindings PROPERTIES TIMEOUT 30)
+        endif()
 
         # Only set default output dir if not specified externally (e.g., by setup.py)
         if(NOT DEFINED CMAKE_LIBRARY_OUTPUT_DIRECTORY)

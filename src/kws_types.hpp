@@ -117,6 +117,11 @@ struct KwsConfig {
     int score_interval = 1;
     int num_threads = 1;
 
+    float partial_threshold = 0.0f;   ///< 0 = off
+    int partial_wait_ms = 500;
+    int partial_min_tokens = 2;
+    int partial_holdoff_ms = 800;
+
     std::map<std::string, std::string> extra_params;
 };
 
@@ -130,7 +135,7 @@ struct DetectionResult {
     int keyword_index = -1;         ///< 命中的关键词下标，未命中为 -1
     std::string keyword;
 
-    int64_t timestamp_ms = 0;       ///< 已扣除模型前瞻的音频时间
+    int64_t timestamp_ms = 0;       ///< 末 token 的帧结束时间；非命中为打分帧时间
     int processing_time_ms = 0;
 };
 
@@ -153,7 +158,9 @@ struct AudioChunk {
 
     static AudioChunk fromVector(const std::vector<float>& vec, int channels = 1,
                                 int sample_rate = 16000, int64_t timestamp = -1) {
-        return {vec.data(), vec.size() / (channels > 0 ? channels : 1), channels,
+        if (channels < 1 || vec.size() % (size_t)channels != 0)
+            return {nullptr, 0, channels, sample_rate, timestamp};
+        return {vec.data(), vec.size() / channels, channels,
                 sample_rate, timestamp};
     }
 

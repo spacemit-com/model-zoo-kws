@@ -6,7 +6,9 @@
 // Fixed MVDR beamformer over mics 2-4, WOLA in the STFT domain with the weights
 // calibrated on the board (echo covariance from a playback-only session,
 // steering from the quiet 3 m words).
-#pragma once
+#ifndef BEAM_H
+#define BEAM_H
+
 #include <vector>
 #include "frontend/fft.h"
 
@@ -27,3 +29,5 @@ private:
 };
 
 }  // namespace kws::frontend
+
+#endif  // BEAM_H

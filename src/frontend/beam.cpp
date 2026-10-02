@@ -9,21 +9,23 @@
 #include <cstdio>
 #include <cstring>
 
+#include "model_io.hpp"
+
 namespace kws::frontend {
 
 bool Beamformer::load(const char *path) {
     FILE *f = fopen(path, "rb");
     if (!f) { perror(path); return false; }
-    int nbin = 0, nch = 0;
-    if (fread(&nbin, 4, 1, f) != 1 || fread(&nch, 4, 1, f) != 1) { fclose(f); return false; }
+    uint32_t nbin = 0, nch = 0;
+    if (!readLe32(f, nbin) || !readLe32(f, nch)) { fclose(f); return false; }
     if (nbin != kN / 2 + 1 || nch != kCh) {
-        fprintf(stderr, "beam weights are %dx%d, expected %dx%d\n", nbin, nch, kN / 2 + 1, kCh);
+        fprintf(stderr, "beam weights are %ux%u, expected %dx%d\n", nbin, nch, kN / 2 + 1, kCh);
         fclose(f);
         return false;
     }
-    w_.resize((size_t)nbin * nch * 2);
-    const bool ok = fread(w_.data(), sizeof(float), w_.size(), f) == w_.size();
+    const bool ok = readModelFloats(f, (size_t)nbin * nch * 2, w_);
     fclose(f);
+    if (!ok) return false;
     fft_.init(kN);
     win_.resize(kN);
     for (int i = 0; i < kN; ++i)   // np.hanning: symmetric

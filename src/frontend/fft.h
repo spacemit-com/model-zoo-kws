@@ -5,7 +5,9 @@
 
 // Minimal iterative radix-2 complex FFT. 512 points at 100 Hz costs nothing,
 // so there is no reason to pull in a library.
-#pragma once
+#ifndef FFT_H
+#define FFT_H
+
 #include <vector>
 
 namespace kws::frontend {
@@ -20,3 +22,5 @@ struct FFT {
 };
 
 }  // namespace kws::frontend
+
+#endif  // FFT_H

@@ -11,6 +11,8 @@ Usage:
 from ._spacemit_kws import (
     # Enums
     KwsBackendType,
+    KwsAudioStatus,
+    KwsStreamStats,
     # Config
     KwsConfig,
     KwsKeyword,
@@ -28,6 +30,8 @@ from ._spacemit_kws import (
 
 __all__ = [
     "KwsBackendType",
+    "KwsAudioStatus",
+    "KwsStreamStats",
     "KwsConfig",
     "KwsKeyword",
     "KwsResult",
