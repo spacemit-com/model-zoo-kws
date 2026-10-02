@@ -1,11 +1,13 @@
 <?xml version="1.0"?>
 <package format="3">
   <name>kws</name>
-  <version>1.0.0</version>
+  <version>1.1.0</version>
   <description>Keyword spotting (wake word) with a built-in cFSMN char-CTC detector</description>
   <depend>audio</depend>
   <!-- Optional BUILD_KWS_AEC uses installed/cached webrtc-audio-processing-2 development files. -->
   <system_depend>python3-pip</system_depend>
+  <!-- Runtime download of the default model (src/model_fetch.cpp). -->
+  <system_depend>curl</system_depend>
 
   <export>
     <build_type>cmake</build_type>

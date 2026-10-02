@@ -52,6 +52,7 @@ set(KWS_STRICT_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/kws_engine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/kws_backend_factory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/kws_presets.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/model_fetch.cpp
 )
 
 include(CheckCXXCompilerFlag)

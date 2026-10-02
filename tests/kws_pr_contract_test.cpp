@@ -273,6 +273,30 @@ void testInvalidBackendConfig() {
             "the error must name the file it looked for");
     require(!backend.isInitialized(), "backend stays uninitialized after a failure");
 
+    // The default directory is fetched on demand; KWS_MODEL_DOWNLOAD=0 must turn that off and
+    // report the missing default model without touching the network.
+    const char* home = std::getenv("HOME");
+    const std::string saved_home = home ? home : "";
+    const char* model_dir_env = std::getenv("KWS_MODEL_DIR");
+    const std::string saved_model_dir = model_dir_env ? model_dir_env : "";
+    setenv("HOME", "/nonexistent/kws-home", 1);
+    unsetenv("KWS_MODEL_DIR");
+    setenv("KWS_MODEL_DOWNLOAD", "0", 1);
+    config = fakeConfig();
+    config.model_dir.clear();
+    err = backend.initialize(config);
+    require(err.code == kws::ErrorCode::MODEL_NOT_FOUND,
+            "a missing default model with downloads off must be reported");
+    require(err.detail == "/nonexistent/kws-home/.cache/models/kws/xiaojin-v1/cfsmn.bin",
+            "the default model directory must be ~/.cache/models/kws/xiaojin-v1");
+    unsetenv("KWS_MODEL_DOWNLOAD");
+    if (home) {
+        setenv("HOME", saved_home.c_str(), 1);
+    } else {
+        unsetenv("HOME");
+    }
+    if (model_dir_env) setenv("KWS_MODEL_DIR", saved_model_dir.c_str(), 1);
+
     std::vector<kws::DetectionResult> results;
     const std::vector<float> frame(160, 0.0f);
     err = backend.process(kws::AudioChunk::fromFloat(frame.data(), frame.size(), 1, 16000),

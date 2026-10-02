@@ -36,3 +36,14 @@ tests:
     workdir: sdk
     command: |
       bash components/model_zoo/kws/tests/test_python_bindings.sh
+
+  - name: kws-model-fetch
+    description: Verifies runtime model download from a local fixture package (SHA256 check, atomic install, repair, failure paths) and that the default release matches the CMake pin.
+    category: functional
+    scopes: [pr]
+    timeout_s: 120
+    workdir: sdk
+    requires:
+      commands: [curl, tar]
+    command: |
+      bash components/model_zoo/kws/tests/test_model_fetch.sh

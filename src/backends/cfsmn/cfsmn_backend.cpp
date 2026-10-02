@@ -5,6 +5,8 @@
 
 #include "cfsmn_backend.hpp"
 
+#include "model_fetch.hpp"
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -19,7 +21,7 @@ namespace kws {
 
 namespace {
 
-const char kDefaultModelDir[] = "~/.cache/models/kws/xiaojin-v1";
+const char kModelCacheDir[] = "~/.cache/models/kws/";
 const char kWeightsFile[] = "cfsmn.bin";
 const char kBeamFile[] = "beam_w.bin";
 const char kKeywordsFile[] = "keywords.txt";
@@ -201,13 +203,24 @@ ErrorInfo CfsmnBackend::initialize(const KwsConfig& config) {
     if (source_channel_ >= config_.num_channels)
         return ErrorInfo::error(ErrorCode::INVALID_CONFIG, "Source channel is out of range");
 
+    const ModelRelease release = defaultModelRelease();
+    const std::string default_dir = expandUser(kModelCacheDir + release.name);
     std::string model_dir = config_.model_dir;
     if (model_dir.empty()) {
         const char* env = std::getenv("KWS_MODEL_DIR");
-        model_dir = env ? env : kDefaultModelDir;
+        model_dir = env ? env : default_dir;
     }
     model_dir = expandUser(model_dir);
+    while (model_dir.size() > 1 && model_dir.back() == '/') model_dir.pop_back();
     config_.model_dir = model_dir;
+
+    // 只有默认目录会自动下载：其他目录的内容我们不知道该从哪里来。
+    if (model_dir == default_dir && modelDownloadEnabled()) {
+        std::string fetch_error;
+        if (!ensureModel(release, model_dir, &fetch_error)) {
+            return ErrorInfo::error(ErrorCode::MODEL_NOT_FOUND, "Model download failed", fetch_error);
+        }
+    }
 
     const std::string weights = join(model_dir, kWeightsFile);
     if (!exists(weights)) {
